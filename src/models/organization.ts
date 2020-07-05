@@ -91,7 +91,7 @@ export class Organization {
   }
 
   get caCn(): string {
-    return `${this.caName}.${this.fullName}`;
+    return `${this.caName}.${this.domainName}`;
     // return `${this.caName}.tls`;
   }
 

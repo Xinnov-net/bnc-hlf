@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { ensureDir } from 'fs-extra';
-import { CSR, DockerComposeYamlOptions, IEnrollmentResponse, IEnrollSecretResponse } from '../../utils/data-type';
+import { CsrRequest, DockerComposeYamlOptions, IEnrollmentResponse, IEnrollSecretResponse } from '../../utils/data-type';
 import { d, e } from '../../utils/logs';
 import { SysWrapper } from '../../utils/sysWrapper';
 import { BaseGenerator } from '../base';
@@ -33,7 +33,6 @@ import getPropertiesPath = Utils.getPropertiesPath;
 import copyFile = SysWrapper.copyFile;
 import getOrganizationUsersPath = Utils.getOrganizationUsersPath;
 import { Organization } from '../../models/organization';
-import { CertificateCsr } from '../utils/certificateCsr';
 import { Network } from '../../models/network';
 
 export interface AdminCAAccount {
@@ -148,35 +147,35 @@ certificateAuthorities:
       for (const peer of this.options.org.peers) {
         const peerMspPath = getPeerMspPath(this.options.networkRootPath, this.options.org, peer);
 
-        // get peer csr
-        const certificateCsr = new CertificateCsr(this.network);
-        const csr = await certificateCsr.generateCsrHost(peer);
-
-        const peerEnrollment = await this._generatePeerMspFiles(peer, membership, orgMspId, csr);
-        const peerCertificate = peerEnrollment.enrollment.certificate;
-        const peerKeyPem =  csr ? csr.key : peerEnrollment.enrollment.key.toBytes();
+        // build csr request
+        const csrRequest: CsrRequest = { san: `${peer.name}.${this.network.organizations[0].fullName}` };
+        const peerEnrollment = await this._generatePeerMspFiles(peer, membership, orgMspId, csrRequest);
+        const {
+          certificate: peerCertificate,
+          key: peerKeyPem
+        } = peerEnrollment.enrollment;
 
         // Store all generated files
         await createFile(`${peerMspPath}/admincerts/Admin@${this.options.org.fullName}-cert.pem`, orgAdminCertificate);
         await createFile(`${peerMspPath}/cacerts/ca.${this.options.org.fullName}-cert.pem`, orgAdminRootCertificate);
-        await createFile(`${peerMspPath}/keystore/priv_sk`, peerKeyPem);
+        await createFile(`${peerMspPath}/keystore/priv_sk`, peerKeyPem.toBytes());
         await createFile(`${peerMspPath}/signcerts/${peer.name}.${this.options.org.fullName}-cert.pem`, peerCertificate);
 
         // Generate TLS if it'w enabled
         if(this.options.org.isSecure) {
           await copyFile(fromTlsCaCerts, `${peerMspPath}/tlscacerts/tlsca.${this.options.org.fullName}-cert.pem`);
 
-          const peerTlsEnrollment = await this._generatePeerTlsFiles(peer, membership, peerEnrollment.secret, csr);
+          const peerTlsEnrollment = await this._generatePeerTlsFiles(peer, membership, peerEnrollment.secret, csrRequest);
           const {
+            key: peerTlsKey,
             certificate: peerTlsCertificate,
             rootCertificate: peerTlsRootCertificate
           } = peerTlsEnrollment;
-          const peerTlsKey = csr ? csr.key : peerTlsEnrollment.key.toBytes();
 
           const peerTlsPath = getPeerTlsPath(this.options.networkRootPath, this.options.org, peer);
           await createFile(`${peerTlsPath}/ca.crt`, peerTlsRootCertificate);
           await createFile(`${peerTlsPath}/server.crt`, peerTlsCertificate);
-          await createFile(`${peerTlsPath}/server.key`, peerTlsKey);
+          await createFile(`${peerTlsPath}/server.key`, peerTlsKey.toBytes());
         }
       }
       d('Register & Enroll Organization peers done !!!');
@@ -300,7 +299,7 @@ NodeOUs:
    * @param csr
    * @private
    */
-  private async _generatePeerMspFiles(peer: Peer, membership: Membership, mspId: string, csr?: CSR): Promise<IEnrollSecretResponse> {
+  private async _generatePeerMspFiles(peer: Peer, membership: Membership, mspId: string, csr?: CsrRequest): Promise<IEnrollSecretResponse> {
     try {
       // add config.yaml file
       await this.generateConfigOUFile(`${getPeerMspPath(this.options.networkRootPath, this.options.org, peer)}/config.yaml`);
@@ -332,7 +331,7 @@ NodeOUs:
    * @param csr
    * @private
    */
-  private async _generatePeerTlsFiles(peer: Peer, membership: Membership, secret: string, csr?: CSR): Promise<IEnrollmentResponse> {
+  private async _generatePeerTlsFiles(peer: Peer, membership: Membership, secret: string, csr?: CsrRequest): Promise<IEnrollmentResponse> {
     try {
       // enroll & store peer crypto credentials
       const request: IEnrollmentRequest = {
