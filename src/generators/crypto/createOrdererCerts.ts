@@ -34,6 +34,7 @@ import getPropertiesPath = Utils.getPropertiesPath;
 import copyFile = SysWrapper.copyFile;
 import { CSR, IEnrollSecretResponse } from '../../utils/data-type';
 import { CertificateCsr } from '../utils/certificateCsr';
+import { AlreadyEnrolledException } from '../../utils/exceptions/AlreadyEnrolledException';
 
 /**
  * Class responsible to generate Ordering crypto & certificates credentials
@@ -114,6 +115,7 @@ certificateAuthorities:
       // copy ca tls certs if secure enabled
       const ordOrgRootPath = getOrdererOrganizationRootPath(rootPath, this.network.ordererOrganization.domainName);
       const tlsCaCerts = `${this.network.options.networkConfigPath}/organizations/fabric-ca/${this.network.ordererOrganization.name}/crypto/ca-cert.pem`;
+      membership.setCacerts(tlsCaCerts);
       if(this.network.ordererOrganization.isSecure) {
         await copyFile(tlsCaCerts, `${ordOrgRootPath}/tlsca/tlsca.${this.network.ordererOrganization.domainName}-cert.pem`);
         await copyFile(tlsCaCerts, `${ordOrgRootPath}/msp/tlscacerts/tlsca.${this.network.ordererOrganization.domainName}-cert.pem`);
@@ -165,14 +167,23 @@ certificateAuthorities:
         if (this.network.ordererOrganization.isSecure || this.network.options.consensus === ConsensusType.RAFT) {
           await copyFile(tlsCaCerts, `${ordererMspPath}/tlscacerts/tlsca.${this.network.ordererOrganization.domainName}-cert.pem`);
 
-          const ordererTlsEnrollment = await this._generateOrdererTlsFiles(orderer, membership, ordererEnrollment.secret, csr);
-          const ordererTlsCertificate = ordererTlsEnrollment.certificate;
-          const ordererTlsKey = csr ? csr.key : ordererTlsEnrollment.key.toBytes();
+          try {
+            const ordererTlsEnrollment = await this._generateOrdererTlsFiles(orderer, membership, ordererEnrollment.secret, csr);
+            const ordererTlsCertificate = ordererTlsEnrollment.certificate;
+            const ordererTlsKey = csr ? csr.key : ordererTlsEnrollment.key.toBytes();
 
-          const ordererTlsPath = `${baseOrdererPath}/${this.network.ordererOrganization.ordererFullName(orderer)}/tls`;
-          await copyFile(tlsCaCerts, `${ordererTlsPath}/ca.crt`);
-          await createFile(`${ordererTlsPath}/server.crt`, ordererTlsCertificate);
-          await createFile(`${ordererTlsPath}/server.key`, ordererTlsKey);
+            const ordererTlsPath = `${baseOrdererPath}/${this.network.ordererOrganization.ordererFullName(orderer)}/tls`;
+            await copyFile(tlsCaCerts, `${ordererTlsPath}/ca.crt`);
+            await createFile(`${ordererTlsPath}/server.crt`, ordererTlsCertificate);
+            await createFile(`${ordererTlsPath}/server.key`, ordererTlsKey);
+          } catch (er) {
+            if(er instanceof AlreadyEnrolledException) {
+              e(`Peer ${orderer.name}.${this.network.ordererOrganization.domainName} found on the wallet - no secret available for tls, continue...`);
+              continue;
+            }
+
+            throw er;
+          }
         }
       }
       d('Register & Enroll Organization orderers done !!!');
@@ -292,6 +303,11 @@ certificateAuthorities:
    */
   private async _generateOrdererTlsFiles(orderer: Orderer, membership: Membership, secret: string, csr?: CSR): Promise<IEnrollResponse> {
     try {
+      // check if secret available
+      if(!secret) {
+        throw new AlreadyEnrolledException('error generating tls certificate -- missing secret');
+      }
+
       // enroll & store peer crypto credentials
       const request: IEnrollmentRequest = {
         enrollmentID: `${this.network.ordererOrganization.ordererFullName(orderer)}`,

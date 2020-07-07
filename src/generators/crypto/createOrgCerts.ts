@@ -35,6 +35,7 @@ import getOrganizationUsersPath = Utils.getOrganizationUsersPath;
 import { Organization } from '../../models/organization';
 import { CertificateCsr } from '../utils/certificateCsr';
 import { Network } from '../../models/network';
+import { AlreadyEnrolledException } from '../../utils/exceptions/AlreadyEnrolledException';
 
 export interface AdminCAAccount {
   name: string;
@@ -113,6 +114,7 @@ certificateAuthorities:
       // copy ca tls certs if secure enabled
       const orgMspPath = getOrganizationMspPath(this.options.networkRootPath, this.options.org);
       const fromTlsCaCerts = `${this.options.networkRootPath}/organizations/fabric-ca/${this.options.org.name}/crypto/ca-cert.pem`;
+      membership.setCacerts(fromTlsCaCerts);
       if(this.options.org.isSecure) {
         const toFile = `${this.options.networkRootPath}/organizations/peerOrganizations/${this.options.org.fullName}/tlsca/tlsca.${this.options.org.fullName}-cert.pem`;
         await copyFile(fromTlsCaCerts, toFile);
@@ -166,17 +168,26 @@ certificateAuthorities:
         if(this.options.org.isSecure) {
           await copyFile(fromTlsCaCerts, `${peerMspPath}/tlscacerts/tlsca.${this.options.org.fullName}-cert.pem`);
 
-          const peerTlsEnrollment = await this._generatePeerTlsFiles(peer, membership, peerEnrollment.secret, csr);
-          const {
-            certificate: peerTlsCertificate,
-            rootCertificate: peerTlsRootCertificate
-          } = peerTlsEnrollment;
-          const peerTlsKey = csr ? csr.key : peerTlsEnrollment.key.toBytes();
+          try {
+            const peerTlsEnrollment = await this._generatePeerTlsFiles(peer, membership, peerEnrollment.secret, csr);
+            const {
+              certificate: peerTlsCertificate,
+              rootCertificate: peerTlsRootCertificate
+            } = peerTlsEnrollment;
+            const peerTlsKey = csr ? csr.key : peerTlsEnrollment.key.toBytes();
 
-          const peerTlsPath = getPeerTlsPath(this.options.networkRootPath, this.options.org, peer);
-          await createFile(`${peerTlsPath}/ca.crt`, peerTlsRootCertificate);
-          await createFile(`${peerTlsPath}/server.crt`, peerTlsCertificate);
-          await createFile(`${peerTlsPath}/server.key`, peerTlsKey);
+            const peerTlsPath = getPeerTlsPath(this.options.networkRootPath, this.options.org, peer);
+            await createFile(`${peerTlsPath}/ca.crt`, peerTlsRootCertificate);
+            await createFile(`${peerTlsPath}/server.crt`, peerTlsCertificate);
+            await createFile(`${peerTlsPath}/server.key`, peerTlsKey);
+          } catch(er) {
+            if(er instanceof AlreadyEnrolledException) {
+              e(`Peer ${peer.name}.${this.options.org.fullName} found on the wallet - no secret available for tls, continue...`);
+              continue;
+            }
+
+            throw er;
+          }
         }
       }
       d('Register & Enroll Organization peers done !!!');
@@ -334,6 +345,11 @@ NodeOUs:
    */
   private async _generatePeerTlsFiles(peer: Peer, membership: Membership, secret: string, csr?: CSR): Promise<IEnrollmentResponse> {
     try {
+      // check if secret available
+      if(!secret) {
+        throw new AlreadyEnrolledException('error generating tls certificate -- missing secret');
+      }
+
       // enroll & store peer crypto credentials
       const request: IEnrollmentRequest = {
         enrollmentID: `${peer.name}.${this.options.org.fullName}`,

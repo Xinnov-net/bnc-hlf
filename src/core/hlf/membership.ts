@@ -19,6 +19,8 @@ import { IEnrollmentRequest, IEnrollResponse, IRegisterRequest, TLSOptions } fro
 import { ClientConfig, ClientHelper } from './helpers';
 import { d, e } from '../../utils/logs';
 import { CSR, IEnrollmentResponse, IEnrollSecretResponse } from '../../utils/data-type';
+import { Identity, X509Identity } from 'fabric-network';
+import { ICryptoKey } from 'fabric-client';
 
 export type UserParams = IRegisterRequest;
 export type AdminParams = IEnrollmentRequest;
@@ -32,6 +34,8 @@ export type AdminParams = IEnrollmentRequest;
 export class Membership extends ClientHelper {
   /* instance of the CA service*/
   public ca: FabricCAServices;
+
+  public cacert?: string;
 
   /**
    * Constructor
@@ -71,8 +75,9 @@ export class Membership extends ClientHelper {
       const adminIdentity = await this.wallet.getIdentity(this.clientConfig.admin.name);
       if (adminIdentity) {
         d(`An identity for the admin user (${this.clientConfig.admin.name}) already exists in the wallet`);
-        return null;
-        // TODO return enrollment response from existing data on wallet & ca container volumes (for ca root certificate)
+
+        // Return the constructed object better than null
+        return this._getEnrollmentFromIdentity(adminIdentity);
       }
 
       // enroll the admin account
@@ -149,7 +154,7 @@ export class Membership extends ClientHelper {
       const userIdentity = await this.wallet.getIdentity(params.enrollmentID);
       if (userIdentity) {
         d(`An identity for the user (${params.enrollmentID}) already exists`);
-        return null;
+        return this._getUserEnrollmentFromIdentity(userIdentity);
       }
 
       // check if the admin account exists
@@ -201,5 +206,39 @@ export class Membership extends ClientHelper {
       trustedRoots: caRoots,
       verify: false
     };
+  }
+
+  /**
+   * Set the CA root certificate
+   * @param rootCertificate root certificate as PEM string
+   */
+  setCacerts(rootCertificate: string) {
+    this.cacert = rootCertificate;
+  }
+
+  /**
+   * Return the enrollment response from the identity found on the Wallet
+   *
+   * @param identity
+   * @private
+   */
+  private _getEnrollmentFromIdentity(identity: Identity): IEnrollmentResponse {
+    if(identity.type !== 'X.509') {
+      throw new Error(`Identity type not yet supported -- ${identity.type}`);
+    }
+
+    const ident = identity as X509Identity;
+    const keyFromPem = this.client.getCryptoSuite().importKey(ident.credentials.privateKey, { ephemeral: true }) as ICryptoKey;
+    return {
+      keyPem: ident.credentials.privateKey,
+      key: keyFromPem,
+      certificate: ident.credentials.certificate,
+      rootCertificate: this.cacert
+    };
+  }
+
+  private _getUserEnrollmentFromIdentity(identity: Identity): IEnrollSecretResponse {
+    const enrollment = this._getEnrollmentFromIdentity(identity);
+    return { enrollment, secret: undefined };
   }
 }
