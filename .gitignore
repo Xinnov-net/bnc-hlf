@@ -11,7 +11,7 @@ dist/
 /.awcache/*
 /.cache-loader/*
 /dist
-
+.env
 ######################
 # SASS
 ######################

@@ -17,8 +17,8 @@ limitations under the License.
 import * as YamlValidator from 'yaml-validator';
 import { l } from '../../utils/logs';
 
-// TODO use directly the js-yaml safeLoad schema options
 /**
+ * Validator Class for he input configuration template (Deployment and Genesis files)
  *
  * @author wassim.znaidi@gmail.com
  */
@@ -113,7 +113,11 @@ export class ConfigurationValidator {
     };
   }
 
-  // TODO in case of error, display it
+  /**
+   * Validate the configuration template file
+   * @param filePath
+   * @param options
+   */
   private static isValid(filePath: string, options: YamlValidator.IYamlValidatorOptions) {
     l(`Validating ${filePath}...`);
     const validator = new YamlValidator(options);

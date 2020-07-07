@@ -26,12 +26,6 @@ import { Network } from './models/network';
  * @author ahmed
  */
 export class CLI {
-  static async validateAndParse(configFilePath: string, skipDownload?: boolean) {
-    const orchEngine = new Orchestrator();
-    await orchEngine.validateAndParse(configFilePath, skipDownload);
-    return orchEngine;
-  }
-
   static async generatePeersCredentials(configFilePath: string) {
     const orchEngine = new Orchestrator();
     await orchEngine.generatePeersCredentials(configFilePath);
@@ -47,12 +41,6 @@ export class CLI {
   static async createNetwork(configFilePath: string) {
     const orchEngine = new Orchestrator();
     await orchEngine.initNetwork(configFilePath);
-    return orchEngine;
-  }
-
-  static async cleanNetwork(rmi: boolean) {
-    const orchEngine = new Orchestrator();
-    await orchEngine.cleanDocker(rmi);
     return orchEngine;
   }
 

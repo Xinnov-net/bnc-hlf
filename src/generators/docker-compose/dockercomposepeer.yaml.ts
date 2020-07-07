@@ -22,6 +22,7 @@ import { Peer } from '../../models/peer';
 import { Utils } from '../../utils/utils';
 import getDockerComposePath = Utils.getDockerComposePath;
 import { ENABLE_CONTAINER_LOGGING } from '../../utils/constants';
+import { Orchestrator } from '../../orchestrator';
 
 /**
  * Class responsible to generate Peer compose file
@@ -141,8 +142,10 @@ ${this.options.org.getOrdererExtraHost()
       l(`Starting Peer ${serviceName}...`);
 
       const engine = this.options.org.getEngine(peer.options.engineName);
-      const docker = new DockerEngine({ host: engine.options.url, port: engine.options.port });
+      const docker = Orchestrator._getDockerEngine(engine);
+      // const docker = new DockerEngine({ host: engine.options.url, port: engine.options.port });
 
+      await docker.createNetwork({ Name: this.options.composeNetwork });
       await docker.composeOne(serviceName, { cwd: this.path, config: this.filename, log: ENABLE_CONTAINER_LOGGING });
 
       l(`Service Peer ${serviceName} started successfully !!!`);

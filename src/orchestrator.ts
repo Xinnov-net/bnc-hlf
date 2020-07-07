@@ -15,9 +15,9 @@ limitations under the License.
 */
 
 import { join } from 'path';
+import isWsl = require('is-wsl');
 import { d, e, l } from './utils/logs';
 import { DeploymentParser } from './parser/deploymentParser';
-import { NetworkCleanShGenerator, NetworkCleanShOptions } from './generators/networkClean.sh';
 import { ConfigurationValidator } from './parser/validator/configurationValidator';
 import { DockerComposeYamlOptions } from './utils/data-type';
 import { DownloadFabricBinariesGenerator } from './generators/utils/downloadFabricBinaries';
@@ -28,13 +28,12 @@ import { SysWrapper } from './utils/sysWrapper';
 import {
   BNC_NETWORK,
   CHANNEL_DEFAULT_NAME,
-  DEFAULT_CA_ADMIN,
-  ENABLE_CONTAINER_LOGGING,
+  DEFAULT_CA_ADMIN, DOCKER_DEFAULT,
   EXTERNAL_HLF_VERSION,
   HLF_CA_VERSION,
   HLF_CLIENT_ACCOUNT_ROLE,
   HLF_VERSION,
-  NETWORK_ROOT_PATH
+  NETWORK_ROOT_PATH, UNIX_DOCKER_SOCKET
 } from './utils/constants';
 import { OrgCertsGenerator } from './generators/crypto/createOrgCerts';
 import { ClientConfig } from './core/hlf/helpers';
@@ -55,6 +54,7 @@ import { DockerComposeCaGenerator } from './generators/docker-compose/dockerComp
 import getDockerComposePath = Utils.getDockerComposePath;
 import { ChannelGenerator } from './generators/artifacts/channel-mgmt';
 import getArtifactsPath = Utils.getArtifactsPath;
+import { Engine } from './models/engine';
 
 /**
  * Main tools orchestrator
@@ -64,14 +64,6 @@ import getArtifactsPath = Utils.getArtifactsPath;
  * @author ahmed souissi
  */
 export class Orchestrator {
-
-  // public async joinChannel(nameChannel, nameOrg, peers) {
-  //   await channel.joinChannel(nameChannel, peers, nameOrg);
-  // }
-  //
-  // public async updateChannel(anchortx, namech, nameorg) {
-  //   await channel.updateChannel(anchortx, namech, nameorg);
-  // }
 
   /**
    * Parse & validate deployment configuration file
@@ -172,7 +164,7 @@ export class Orchestrator {
    */
   async generateConfigtx(configGenesisFilePath: string) {
     const network: Network = await Orchestrator._parseGenesis(configGenesisFilePath);
-    const path = network.options.networkConfigPath ?? this._getDefaultPath();
+    const path = network.options.networkConfigPath ?? Orchestrator._getDefaultPath();
     const isNetworkValid = network.validate();
     if (!isNetworkValid) {
       return;
@@ -203,7 +195,7 @@ export class Orchestrator {
    */
   async generateGenesis(configGenesisFilePath: string) {
     const network: Network = await Orchestrator._parseGenesis(configGenesisFilePath);
-    const path = network.options.networkConfigPath ?? this._getDefaultPath();
+    const path = network.options.networkConfigPath ?? Orchestrator._getDefaultPath();
 
     l('[genesis]: start generating genesis block...');
     const configTx = new ConfigtxYamlGenerator('configtx.yaml', path, network);
@@ -219,7 +211,7 @@ export class Orchestrator {
    */
   async generateConfigChannel(configGenesisFilePath: string) {
     const network: Network = await Orchestrator._parseGenesis(configGenesisFilePath);
-    const path = network.options.networkConfigPath ?? this._getDefaultPath();
+    const path = network.options.networkConfigPath ?? Orchestrator._getDefaultPath();
 
     l('[channel config]: start generating channel configuration...');
     const configTx = new ConfigtxYamlGenerator('configtx.yaml', path, network);
@@ -234,7 +226,7 @@ export class Orchestrator {
    */
   async generateAnchorPeer(configGenesisFilePath: string) {
     const network: Network = await Orchestrator._parseGenesis(configGenesisFilePath);
-    const path = network.options.networkConfigPath ?? this._getDefaultPath();
+    const path = network.options.networkConfigPath ?? Orchestrator._getDefaultPath();
 
     l('[anchor peer]: start generating anchor peer update...');
     const configTx = new ConfigtxYamlGenerator('configtx.yaml', path, network);
@@ -244,103 +236,13 @@ export class Orchestrator {
   }
 
   /**
-   * Parse & validate the input configuration deployment file.
-   * Once done, start the CA and create all credentials for peers, orderer, admin & users
-   * Start the blockchain network (peers, orderers)
-   * @param configFilePath the full path to deployment configuration file
-   * @param skipDownload boolean to download fabric binaries (needed to create credentials)
-   */
-  async validateAndParse(configFilePath: string, skipDownload = false) {
-    const network: Network = await Orchestrator._parse(configFilePath);
-    l('[End] Blockchain configuration files parsed');
-
-    // Generate dynamically crypto
-    const homedir = require('os').homedir();
-    // const path = network.options.networkConfigPath ? network.options.networkConfigPath : join(homedir, this.networkRootPath);
-    const path = join(homedir, NETWORK_ROOT_PATH);
-    await createFolder(path);
-
-    const options: DockerComposeYamlOptions = {
-      networkRootPath: path,
-      composeNetwork: BNC_NETWORK,
-      org: network.organizations[0],
-      envVars: {
-        FABRIC_VERSION: HLF_VERSION.HLF_2,
-        FABRIC_CA_VERSION: HLF_CA_VERSION.HLF_2,
-        THIRDPARTY_VERSION: EXTERNAL_HLF_VERSION.EXT_HLF_2
-      }
-    };
-
-    if (!skipDownload) {
-      await Orchestrator._downloadBinaries(path, network);
-    }
-
-    // create network
-//     const engine = new DockerEngine({ host: DOCKER_DEFAULT.IP as string, port: DOCKER_DEFAULT.PORT });
-//     const isAlive = await engine.isAlive();
-//     if (!isAlive) {
-//       l('Docker engine is down. Please check you docker server');
-//       return;
-//     }
-//     l('Your docker engine is running...');
-//     l('[Start] Create docker network (bnc-network)');
-//     await engine.createNetwork({ Name: options.composeNetwork });
-//     l('[End] Docker network (bnc-network) created');
-//
-//     // create ca
-//     let dockerComposeCA = new DockerComposeCaGenerator('docker-compose-ca.yaml', path, options, engine);
-//     l('[Start] Starting ORG CA docker container...');
-//     await dockerComposeCA.save();
-//     const isCaStarted = await dockerComposeCA.startOrgCa();
-//     if(!isCaStarted) {
-//       e('Docker CA not started properly - exit !!');
-//       return;
-//     }
-//     l('[End] Ran Root CA docker container...');
-//
-    l('[Start] Creating certificates');
-    //const createCaShGenerator = new CreateOrgCertsShGenerator('createCerts.sh', path, options);
-    //await createCaShGenerator.buildCertificate();
-    const orgCertsGenerator = new OrgCertsGenerator('connection-profile-ca-client.yaml', path, network, options);
-    await orgCertsGenerator.buildCertificate();
-    l('[End] Certificates created');
-
-    // Orderers
-    // let dockerComposeOrdCA = new CreateOrdererCertsGenerator('docker-compose-ca-orderer.yaml', path, options, engine);
-    // await dockerComposeOrdCA.startOrdererCa();
-    // const isGenerated = await dockerComposeOrdCA.buildOrdererCertificates();
-    // if(!isGenerated) {
-    //   e('Error while generating the Orderer crypto credentials');
-    //   return;
-    // }
-    // create ca
-
-    // let dockerComposeRootCA = new DockercomposeRootCAYamlGenerator('docker-compose-ca.yaml', path, options);
-    // l('Saving compose Root CA');
-    // await dockerComposeRootCA.save();
-    // l('Starting Root CA docker container...');
-    // await dockerComposeRootCA.startRootCa();
-    // l('Ran Root CA docker container...');
-    //
-    // const createCaShGenerator = new CreateCAShGenerator('createCa.sh', path, options);
-    // l('Saving createCA.sh');
-    // await createCaShGenerator.save();
-    // l('Executing createCA.sh');
-    // await createCaShGenerator.run();
-    // l('Ran createCA.sh');
-    // const dockerComposePeer = new DockerComposePeerGenerator('docker-compose-peer.yaml', path, options, engine);
-    // await dockerComposePeer.save();
-  }
-
-  /**
    * Generate Crypto & Certificate credentials for peers
    * @param deploymentConfigFilePath
    */
   async generatePeersCredentials(deploymentConfigFilePath: string) {
-    // TODO check if files exists already for the same peers/organizations
     l('[Peer Cred]: start parsing deployment file...');
     const network = await Orchestrator._parse(deploymentConfigFilePath);
-    const path = network.options.networkConfigPath ?? this._getDefaultPath();
+    const path = network.options.networkConfigPath ?? Orchestrator._getDefaultPath();
     await createFolder(path);
 
     // Check if HLF binaries exists
@@ -417,7 +319,7 @@ export class Orchestrator {
     l('[End] Blockchain configuration files parsed');
 
     // Assign & check root path
-    const path = network.options.networkConfigPath ?? this._getDefaultPath();
+    const path = network.options.networkConfigPath ?? Orchestrator._getDefaultPath();
     await createFolder(path);
 
     // Auto-create docker-compose folder if not exists
@@ -437,13 +339,6 @@ export class Orchestrator {
     l('Creating Peer base docker compose file');
     const peerBaseGenerator = new DockerComposeEntityBaseGenerator(options, network);
     await peerBaseGenerator.createTemplateBase();
-
-    l('Creating Docker network');
-    // const engineModel = organization.getEngine(peer.options.engineName);
-    // const engine: DockerEngine = new DockerEngine({ host: engineModel.options.url, port: engineModel.options.port });
-    // TODO use localhost and default port for the default engine
-    const engine = new DockerEngine({ socketPath: '/var/run/docker.sock' });
-    await engine.createNetwork({ Name: options.composeNetwork });
 
     if (enablePeers) {
       l('Creating Peer container & deploy');
@@ -468,10 +363,9 @@ export class Orchestrator {
    * @param genesisFilePath
    */
   async generateOrdererCredentials(genesisFilePath: string) {
-    // TODO check if files exists already for the same orderers/organizations
     l('[Orderer Cred]: start parsing...');
     const network = await Orchestrator._parseGenesis(genesisFilePath);
-    const path = network.options.networkConfigPath ?? this._getDefaultPath();
+    const path = network.options.networkConfigPath ?? Orchestrator._getDefaultPath();
     await createFolder(path);
     l('[Orderer Cred]: parsing done!!!');
 
@@ -483,7 +377,7 @@ export class Orchestrator {
 
     l('[Orderer Cred]: configure local docker engine to be used for the generation process !!!');
     const options: DockerComposeYamlOptions = { networkRootPath: path, composeNetwork: BNC_NETWORK, org: null };
-    const engine = new DockerEngine({ socketPath: '/var/run/docker.sock' }); // TODO configure local docker remote engine
+    const engine = Orchestrator._getDockerEngineLocal();
     await engine.createNetwork({ Name: options.composeNetwork });
     l('[Orderer Cred]: docker engine configured !!!');
 
@@ -538,8 +432,7 @@ export class Orchestrator {
 
         // Now check all container within all organization engine
         for(const engine of org.engines) {
-          const docker = new DockerEngine({ socketPath: '/var/run/docker.sock' }); // TODO configure local docker remote engine
-          // const docker = new DockerEngine({ host: engine.options.url, port: engine.options.port });
+          const docker = Orchestrator._getDockerEngine(engine);
           const containerDeleted = await docker.stopContainerList(services, forceRemove);
           if(!containerDeleted) {
             e('Error while deleting the docker container for peer & orderer');
@@ -562,21 +455,6 @@ export class Orchestrator {
       e(err);
       return false;
     }
-  }
-
-  /**
-   * Clean all docker
-   * @param rmi remove image also
-   */
-  async cleanDocker(rmi: boolean) {
-    const options = new NetworkCleanShOptions();
-    options.removeImages = rmi;
-
-    let networkClean = new NetworkCleanShGenerator('clean.sh', 'na', options);
-    await networkClean.run();
-
-    l('************ Success!');
-    l('Environment cleaned!');
   }
 
   /**
@@ -713,7 +591,7 @@ export class Orchestrator {
   async createChannel(channelName: string, channeltxPath: string, deploymentConfigPath: string): Promise<void> {
     l(`[Channel] - Request to create a new channel (${channelName})`);
     const network: Network = await Orchestrator._parse(deploymentConfigPath);
-    const path = network.options.networkConfigPath ?? this._getDefaultPath();
+    const path = network.options.networkConfigPath ?? Orchestrator._getDefaultPath();
 
     const channelGenerator = new ChannelGenerator(`connection-profile-create-channel-${network.organizations[0].name}.yaml`, path, network);
     const created = await channelGenerator.setupChannel(channelName, `${getArtifactsPath(path)}/${channelName}.tx`);
@@ -730,7 +608,7 @@ export class Orchestrator {
    public async joinChannel(channelName: string, peers, deploymentConfigPath: string ): Promise<void> {
      l(`[Channel] - Request to join a new channel (${channelName})`);
      const network: Network = await Orchestrator._parse(deploymentConfigPath);
-     const path = network.options.networkConfigPath ?? this._getDefaultPath();
+     const path = network.options.networkConfigPath ?? Orchestrator._getDefaultPath();
 
      const channelGenerator = new ChannelGenerator(`connection-profile-join-channel-${network.organizations[0].name}.yaml`, path, network);
      const joined = await channelGenerator.joinChannel(channelName, peers);
@@ -742,8 +620,31 @@ export class Orchestrator {
    * Return the default path where to store all files and materials
    * @private
    */
-  private _getDefaultPath(): string {
+  private static _getDefaultPath(): string {
     const homedir = require('os').homedir();
     return join(homedir, NETWORK_ROOT_PATH);
+  }
+
+  /**
+   * return the docker engine from the provided engine
+   * In case of wsl, use docker socket instead of IP (as remote docker engine not exposed on WSL)
+   *
+   * @param engine
+   * @private
+   */
+  static _getDockerEngine(engine: Engine): DockerEngine {
+    if(isWsl) {
+      return new DockerEngine({ socketPath: UNIX_DOCKER_SOCKET });
+    }
+
+    return new DockerEngine({ host: engine.options.url, port: engine.options.port });
+  }
+
+  static _getDockerEngineLocal(): DockerEngine {
+    if(isWsl) {
+      return new DockerEngine({ socketPath: UNIX_DOCKER_SOCKET });
+    }
+
+    return new DockerEngine({ host: DOCKER_DEFAULT.IP as string, port: DOCKER_DEFAULT.PORT });
   }
 }

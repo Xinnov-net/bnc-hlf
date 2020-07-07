@@ -17,10 +17,13 @@ limitations under the License.
 */
 
 import * as program from 'commander';
+import * as dotenv from 'dotenv';
 import { l } from './utils/logs';
 import { CLI } from './cli';
 
 const pkg = require('../package.json');
+
+dotenv.config();
 
 /**
  *
@@ -51,14 +54,6 @@ const tasks = {
 
   async createNetwork(filePath: string) {
     return await CLI.createNetwork(filePath);
-  },
-
-  async cleanNetwork(rmi: boolean) {
-    return await CLI.cleanNetwork(rmi);
-  },
-
-  async validateAndParse(filePath: string, skipDownload?: boolean) {
-    return await CLI.validateAndParse(filePath, skipDownload);
   },
 
   async deployHlfServices(filePath: string, skipDownload?: boolean, enablePeers = true, enableOrderers = true) {
@@ -236,19 +231,7 @@ program
   .requiredOption('-f, --config <path>', 'Absolute Path to the blockchain deployment  definition file')
   .action(async (cmd: any) => {
     if (cmd) {
-      // TODO check if the file exists
-
       await tasks.createNetwork(cmd.config);
-    }
-  });
-
-program
-  .command('parse')
-  .requiredOption('-c, --config <path>', 'Absolute Path to the blockchain deployment  definition file')
-  .option('--skip-download', 'Skip downloading the Fabric Binaries and Docker images')
-  .action(async (cmd: any) => {
-    if (cmd) {
-      await tasks.validateAndParse(cmd.config, !!cmd.skipDownload);
     }
   });
 
@@ -273,13 +256,6 @@ program
   });
 
 program
-  .command('clean')
-  .option('-R, --no-rmi', 'Do not remove docker images')
-  .action(async (cmd: any) => {
-    await tasks.cleanNetwork(cmd.rmi); // if -R is not passed cmd.rmi is true
-  });
-
-program
   .command('enroll <type> <id> <secret> <affiliation> <mspID> [args...]')
   .option('-R, --no-rmi', 'Do not remove docker images')
   .option('-ca, --caInfo <caInfo>', 'add ca info', 'ca.org1.example.com')
@@ -287,7 +263,6 @@ program
   .option('-ccp, --ccpPath <ccpPath>', 'add ccpPath', '../../../tests/ca/connection-org1.json')
   .action(async (type: string, id: string, secret: string, affiliation: string, mspID: string, args: string[], cmd: any) => {
     await tasks.enroll(type, id, secret, affiliation, mspID, cmd.caInfo, cmd.walletDirectoryName, cmd.ccpPath); // if -R is not passed cmd.rmi is true
-
   });
 
 program

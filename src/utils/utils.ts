@@ -42,7 +42,8 @@ export namespace Utils {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  export function changeOwnerShipWithPassword(folder: string, password = 'wassim'): Promise<boolean> {
+  export function changeOwnerShipWithPassword(folder: string): Promise<boolean> {
+    const password = process.env.ROOT_PASSWORD ?? '';
     const command = `echo '${password}' | sudo -kS chown -R $USER:$USER ${folder}`;
 
     return new Promise((resolved, rejected) => {

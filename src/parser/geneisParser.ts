@@ -19,7 +19,7 @@ import { Network } from '../models/network';
 import { BaseParser } from './base';
 import { Orderer } from '../models/orderer';
 import { Peer } from '../models/peer';
-import { ConsensusType, EXTERNAL_HLF_VERSION, HLF_CA_VERSION, HLF_VERSION } from '../utils/constants';
+import { ConsensusType, DEFAULT_CA_ADMIN, EXTERNAL_HLF_VERSION, HLF_CA_VERSION, HLF_VERSION } from '../utils/constants';
 import { Ca } from '../models/ca';
 import { OrdererOrganization } from '../models/ordererOrganization';
 
@@ -45,8 +45,8 @@ export class GenesisParser extends BaseParser {
       number: 0,
       port: port,
       host: url,
-      user: 'admin',
-      password: 'adminpw',
+      user: DEFAULT_CA_ADMIN.name,
+      password: DEFAULT_CA_ADMIN.password,
       isSecure: false,
     });
 

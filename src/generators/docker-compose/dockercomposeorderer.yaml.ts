@@ -24,6 +24,7 @@ import getArtifactsPath = Utils.getArtifactsPath;
 import { ENABLE_CONTAINER_LOGGING, GENESIS_FILE_NAME } from '../../utils/constants';
 import { Orderer } from '../../models/orderer';
 import { Network } from '../../models/network';
+import { Orchestrator } from '../../orchestrator';
 
 /**
  * Class responsible to generate Orderer compose file
@@ -111,8 +112,10 @@ ${this.options.org.getOrdererExtraHost()
       l(`Starting Orderer ${serviceName}...`);
 
       const engine = this.options.org.getEngine(orderer.options.engineName);
-      const docker = new DockerEngine({ host: engine.options.url, port: engine.options.port });
+      const docker = Orchestrator._getDockerEngine(engine);
+      // const docker = new DockerEngine({ host: engine.options.url, port: engine.options.port });
 
+      await docker.createNetwork({ Name: this.options.composeNetwork });
       await docker.composeOne(serviceName, { cwd: this.path, config: this.filename, log: ENABLE_CONTAINER_LOGGING });
 
       l(`Service Orderer ${serviceName} started successfully !!!`);
