@@ -19,7 +19,6 @@ import isWsl = require('is-wsl');
 import { d, e, l } from './utils/logs';
 import { DeploymentParser } from './parser/deploymentParser';
 import { ConfigurationValidator } from './parser/validator/configurationValidator';
-import { DockerComposeYamlOptions } from './utils/data-type';
 import { DownloadFabricBinariesGenerator } from './generators/utils/downloadFabricBinaries';
 import { Network } from './models/network';
 import { GenesisParser } from './parser/geneisParser';
@@ -55,6 +54,7 @@ import getDockerComposePath = Utils.getDockerComposePath;
 import { ChannelGenerator } from './generators/artifacts/channel-mgmt';
 import getArtifactsPath = Utils.getArtifactsPath;
 import { Engine } from './models/engine';
+import { newFullTransactionEvent } from 'fabric-network/lib/impl/event/fulltransactioneventfactory';
 
 /**
  * Main tools orchestrator
@@ -266,22 +266,12 @@ export class Orchestrator {
     l('[Peer Cred]: parsing deploy config done !!!');
 
     // Start the CA container if not
-    const options: DockerComposeYamlOptions = {
-      networkRootPath: path,
-      composeNetwork: BNC_NETWORK,
-      org: network.organizations[0],
-      envVars: {
-        FABRIC_VERSION: HLF_VERSION.HLF_2,
-        FABRIC_CA_VERSION: HLF_CA_VERSION.HLF_2,
-        THIRDPARTY_VERSION: EXTERNAL_HLF_VERSION.EXT_HLF_2
-      }
-    };
-    const engine = new DockerEngine({ socketPath: '/var/run/docker.sock' });
-    await engine.createNetwork({ Name: options.composeNetwork });
+    const engine = Orchestrator._getDockerEngineLocal();
+    await engine.createNetwork({ Name: network.options.composeNetwork });
     l('[Peer Cred]: docker engine configured !!!');
 
     l('[Peer Cred]: start CA container...');
-    const ca = new DockerComposeCaGenerator(`docker-compose-ca-${network.organizations[0].name}.yaml`, path, network, options, engine);
+    const ca = new DockerComposeCaGenerator(`docker-compose-ca-${network.organizations[0].name}.yaml`, path, network, engine);
     await ca.save();
     const caStarted = await ca.startOrgCa();
     if (!caStarted) {
@@ -291,7 +281,7 @@ export class Orchestrator {
     l(`[Peer Cred]: CA container started (${caStarted}) !!!`);
 
     l(`[Peer Cred]: start create peer crypto & certs credentials...`);
-    const orgCertsGenerator = new OrgCertsGenerator(`connection-profile-ca-${network.organizations[0].name}-client.yaml`, path, network, options);
+    const orgCertsGenerator = new OrgCertsGenerator(`connection-profile-ca-${network.organizations[0].name}-client.yaml`, path, network);
     const isGenerated = await orgCertsGenerator.buildCertificate();
     l(`[Peer Cred]: credentials generated (${isGenerated}) !!! `);
 
@@ -325,24 +315,13 @@ export class Orchestrator {
     // Auto-create docker-compose folder if not exists
     await createFolder(getDockerComposePath(path));
 
-    const options: DockerComposeYamlOptions = {
-      networkRootPath: path,
-      composeNetwork: BNC_NETWORK,
-      org: network.organizations[0],
-      envVars: {
-        FABRIC_VERSION: HLF_VERSION.HLF_2,
-        FABRIC_CA_VERSION: HLF_CA_VERSION.HLF_2,
-        THIRDPARTY_VERSION: EXTERNAL_HLF_VERSION.EXT_HLF_2
-      }
-    };
-
     l('Creating Peer base docker compose file');
-    const peerBaseGenerator = new DockerComposeEntityBaseGenerator(options, network);
+    const peerBaseGenerator = new DockerComposeEntityBaseGenerator(network);
     await peerBaseGenerator.createTemplateBase();
 
     if (enablePeers) {
       l('Creating Peer container & deploy');
-      const peerGenerator = new DockerComposePeerGenerator(`docker-compose-peers-${organization.name}.yaml`, options);
+      const peerGenerator = new DockerComposePeerGenerator(`docker-compose-peers-${organization.name}.yaml`, network);
       l(`'Creating Peers container template`);
       await peerGenerator.createTemplatePeers();
       l(`'Starting Peer containers`);
@@ -351,7 +330,7 @@ export class Orchestrator {
 
     if (enableOrderers) {
       l('Creating Orderers Container & Deploy');
-      const ordererGenerator = new DockerComposeOrdererGenerator(`docker-compose-orderers-${organization.name}.yaml`, options);
+      const ordererGenerator = new DockerComposeOrdererGenerator(`docker-compose-orderers-${organization.name}.yaml`, network);
       await ordererGenerator.createTemplateOrderers();
       const ordererStarted = await ordererGenerator.startOrderers();
       l(`Orderers started (${ordererStarted})`);
@@ -376,13 +355,12 @@ export class Orchestrator {
     }
 
     l('[Orderer Cred]: configure local docker engine to be used for the generation process !!!');
-    const options: DockerComposeYamlOptions = { networkRootPath: path, composeNetwork: BNC_NETWORK, org: null };
     const engine = Orchestrator._getDockerEngineLocal();
-    await engine.createNetwork({ Name: options.composeNetwork });
+    await engine.createNetwork({ Name: network.options.composeNetwork });
     l('[Orderer Cred]: docker engine configured !!!');
 
     l('[Orderer Cred]: start CA container...');
-    const ca = new DockerComposeCaOrdererGenerator('docker-compose-ca-orderer.yaml', path, network, options, engine);
+    const ca = new DockerComposeCaOrdererGenerator('docker-compose-ca-orderer.yaml', path, network, engine);
     await ca.save();
     const caStarted = await ca.startOrdererCa();
     if (!caStarted) {

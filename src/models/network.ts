@@ -17,7 +17,7 @@ limitations under the License.
 /* tslint:disable:no-inferrable-types */
 import { Organization } from './organization';
 import { Channel } from './channel';
-import { ConsensusType, EXTERNAL_HLF_VERSION, HLF_CA_VERSION, HLF_VERSION } from '../utils/constants';
+import { BNC_NETWORK, ConsensusType, EXTERNAL_HLF_VERSION, HLF_CA_VERSION, HLF_VERSION } from '../utils/constants';
 import { OrdererOrganization } from './ordererOrganization';
 import { e } from '../utils/logs';
 
@@ -25,6 +25,7 @@ export class NetworkOptions {
   hyperledgerVersion?: HLF_VERSION;
   hyperledgerCAVersion?: HLF_CA_VERSION;
   externalHyperledgerVersion?: EXTERNAL_HLF_VERSION;
+  composeNetwork?: string;
   inside?: boolean = false;
   networkConfigPath?: string;
   consensus?: ConsensusType;

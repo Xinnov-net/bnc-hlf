@@ -15,7 +15,6 @@ limitations under the License.
 */
 
 import { BaseGenerator } from '../base';
-import { DockerComposeYamlOptions } from '../../utils/data-type';
 import { DockerEngine } from '../../agents/docker-agent';
 import { d, e, l } from '../../utils/logs';
 import { DOCKER_CA_DELAY, DOCKER_DEFAULT } from '../../utils/constants';
@@ -38,7 +37,7 @@ export class DockerComposeCaOrdererGenerator extends BaseGenerator {
 version: '2'
 
 networks:
-  ${this.options.composeNetwork}:
+  ${this.network.options.composeNetwork}:
     external: true
 
 services:
@@ -58,7 +57,7 @@ services:
     volumes:
       - ${this.network.options.networkConfigPath}/organizations/fabric-ca/${this.network.ordererOrganization.name}:/tmp/hyperledger/fabric-ca
     networks:
-      - ${this.options.composeNetwork}    
+      - ${this.network.options.composeNetwork}    
   `;
 
   /**
@@ -72,10 +71,9 @@ services:
   constructor(filename: string,
               path: string,
               private network: Network,
-              private options?: DockerComposeYamlOptions,
               private readonly dockerEngine?: DockerEngine) {
 
-    super(filename, getDockerComposePath(options.networkRootPath));
+    super(filename, getDockerComposePath(network.options.networkConfigPath));
 
     this.caName = this.network.ordererOrganization.caName;
     this.rootPath = this.network.options.networkConfigPath;
@@ -124,7 +122,7 @@ services:
       d('CA running');
 
       // check if CA crypto generated
-      await changeOwnerShipWithPassword(`${this.options.networkRootPath}`);
+      await changeOwnerShipWithPassword(`${this.network.options.networkConfigPath}`);
       // await this.changeOwnerShipWithPassword(`${this.options.networkRootPath}/organizations/fabric-ca/${this.options.org.name}`);
       // await this.changeOwnership(`${this.options.networkRootPath}/organizations/fabric-ca/${this.options.org.name}`);
 

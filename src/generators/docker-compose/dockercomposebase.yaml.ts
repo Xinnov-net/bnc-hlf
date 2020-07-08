@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { DockerComposeYamlOptions } from '../../utils/data-type';
 import { BaseGenerator } from '../base';
 import { e } from '../../utils/logs';
 import { Utils } from '../../utils/utils';
@@ -34,16 +33,16 @@ version: '2'
 
 services:
   peer-base:
-    image: hyperledger/fabric-peer:${this.options.envVars.FABRIC_VERSION}
+    image: hyperledger/fabric-peer:${this.network.options.hyperledgerVersion}
     environment:
       - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
       # the following setting starts chaincode containers on the same
       # bridge network as the peers
       # https://docs.docker.com/compose/networking/
-      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=${this.options.composeNetwork}
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=${this.network.options.composeNetwork}
       - FABRIC_LOGGING_SPEC=INFO
       #- FABRIC_LOGGING_SPEC=DEBUG
-      - CORE_PEER_TLS_ENABLED=${this.options.org.isSecure}
+      - CORE_PEER_TLS_ENABLED=${this.network.organizations[0].isSecure}
       - CORE_PEER_GOSSIP_USELEADERELECTION=true
       - CORE_PEER_GOSSIP_ORGLEADER=false
       - CORE_PEER_PROFILE_ENABLED=true
@@ -56,7 +55,7 @@ services:
     command: peer node start
 
   orderer-base:
-    image: hyperledger/fabric-orderer:${this.options.envVars.FABRIC_VERSION}
+    image: hyperledger/fabric-orderer:${this.network.options.hyperledgerVersion}
     environment:
       - FABRIC_LOGGING_SPEC=INFO
       - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
@@ -65,7 +64,7 @@ services:
       - ORDERER_GENERAL_LOCALMSPID=${this.network.ordererOrganization.mspName}
       - ORDERER_GENERAL_LOCALMSPDIR=/var/hyperledger/orderer/msp
       # enabled TLS
-      - ORDERER_GENERAL_TLS_ENABLED=${this.network.options.consensus === ConsensusType.RAFT ? true : this.options.org.isSecure}
+      - ORDERER_GENERAL_TLS_ENABLED=${this.network.options.consensus === ConsensusType.RAFT ? true : this.network.organizations[0].isSecure}
       - ORDERER_GENERAL_TLS_PRIVATEKEY=/var/hyperledger/orderer/tls/server.key
       - ORDERER_GENERAL_TLS_CERTIFICATE=/var/hyperledger/orderer/tls/server.crt
       - ORDERER_GENERAL_TLS_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
@@ -81,15 +80,15 @@ services:
    * @param options
    * @param network
    */
-  constructor(private options: DockerComposeYamlOptions, private network?: Network) {
-    super('docker-compose-base.yaml', `${getDockerComposePath(options.networkRootPath)}/base`);
+  constructor(private network?: Network) {
+    super('docker-compose-base.yaml', `${getDockerComposePath(network.options.networkConfigPath)}/base`);
   }
 
   /**
    * return the folder path where the base template is saved
    */
   getBasePath(): string {
-    return `${this.options.networkRootPath}/docker-compose/base`;
+    return `${this.network.options.networkConfigPath}/docker-compose/base`;
   }
 
   /**

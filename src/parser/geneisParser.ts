@@ -19,7 +19,7 @@ import { Network } from '../models/network';
 import { BaseParser } from './base';
 import { Orderer } from '../models/orderer';
 import { Peer } from '../models/peer';
-import { ConsensusType, DEFAULT_CA_ADMIN, EXTERNAL_HLF_VERSION, HLF_CA_VERSION, HLF_VERSION } from '../utils/constants';
+import { BNC_NETWORK, ConsensusType, DEFAULT_CA_ADMIN, EXTERNAL_HLF_VERSION, HLF_CA_VERSION, HLF_VERSION } from '../utils/constants';
 import { Ca } from '../models/ca';
 import { OrdererOrganization } from '../models/ordererOrganization';
 
@@ -92,6 +92,7 @@ export class GenesisParser extends BaseParser {
       hyperledgerVersion: HLF_VERSION.HLF_2,
       hyperledgerCAVersion: HLF_CA_VERSION.HLF_2,
       externalHyperledgerVersion: EXTERNAL_HLF_VERSION.EXT_HLF_2,
+      composeNetwork: BNC_NETWORK,
       inside: false,
       consensus: networkConsensus,
       forDeployment: false,

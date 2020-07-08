@@ -15,7 +15,6 @@ limitations under the License.
 */
 
 import { BaseGenerator } from '../base';
-import { DockerComposeYamlOptions } from '../../utils/data-type';
 import { DockerEngine } from '../../agents/docker-agent';
 import { d, e, l } from '../../utils/logs';
 import { DOCKER_CA_DELAY, DOCKER_DEFAULT } from '../../utils/constants';
@@ -35,27 +34,27 @@ export class DockerComposeCaGenerator extends BaseGenerator {
 version: '2'
 
 networks:
-  ${this.options.composeNetwork}:
+  ${this.network.options.composeNetwork}:
     external: true
 
 services:
-  ${this.options.org.caName}:
-    container_name: ${this.options.org.caName}
+  ${this.network.organizations[0].caName}:
+    container_name: ${this.network.organizations[0].caName}
     image: hyperledger/fabric-ca:${this.network.options.hyperledgerCAVersion}
-    command: sh -c 'fabric-ca-server start -d -b ${this.options.org.ca.options.user}:${this.options.org.ca.options.password} --port ${this.options.org.ca.options.port} --cfg.identities.allowremove'
+    command: sh -c 'fabric-ca-server start -d -b ${this.network.organizations[0].ca.options.user}:${this.network.organizations[0].ca.options.password} --port ${this.network.organizations[0].ca.options.port} --cfg.identities.allowremove'
     environment:
       - FABRIC_CA_SERVER_HOME=/tmp/hyperledger/fabric-ca/crypto
-      - FABRIC_CA_SERVER_CA_NAME=${this.options.org.caName}
-      - FABRIC_CA_SERVER_TLS_ENABLED=${this.options.org.isSecure}
-      - FABRIC_CA_SERVER_CSR_CN=${this.options.org.caCn}
+      - FABRIC_CA_SERVER_CA_NAME=${this.network.organizations[0].caName}
+      - FABRIC_CA_SERVER_TLS_ENABLED=${this.network.organizations[0].isSecure}
+      - FABRIC_CA_SERVER_CSR_CN=${this.network.organizations[0].caCn}
       - FABRIC_CA_SERVER_CSR_HOSTS=0.0.0.0
       - FABRIC_CA_SERVER_DEBUG=true
     ports:
-      - "${this.options.org.ca.options.port}:${this.options.org.ca.options.port}"
-    volumes:
-      - ${this.options.networkRootPath}/organizations/fabric-ca/${this.options.org.name}:/tmp/hyperledger/fabric-ca
+      - "${this.network.organizations[0].ca.options.port}:${this.network.organizations[0].ca.options.port}"
+    volumes:;
+      - ${this.network.options.networkConfigPath}/organizations/fabric-ca/${this.network.organizations[0].name}:/tmp/hyperledger/fabric-ca
     networks:
-      - ${this.options.composeNetwork}    
+      - ${this.network.options.composeNetwork}    
   `;
 
   /**
@@ -63,15 +62,13 @@ services:
    * @param filename
    * @param path
    * @param network
-   * @param options
    * @param dockerEngine
    */
   constructor(filename: string,
               path: string,
               private network: Network,
-              private options?: DockerComposeYamlOptions,
               private readonly dockerEngine?: DockerEngine) {
-    super(filename, getDockerComposePath(options.networkRootPath));
+    super(filename, getDockerComposePath(network.options.networkConfigPath));
 
     if (!this.dockerEngine) {
       this.dockerEngine = new DockerEngine({ host: DOCKER_DEFAULT.IP as string, port: DOCKER_DEFAULT.PORT });
@@ -80,8 +77,8 @@ services:
 
   async startTlsCa() {
     try {
-      await this.dockerEngine.composeOne(`${this.options.org.caName}`, { cwd: this.path, config: this.filename });
-      await changeOwnership(`${this.options.networkRootPath}/${this.options.org.name}`);
+      await this.dockerEngine.composeOne(`${this.network.organizations[0].caName}`, { cwd: this.path, config: this.filename });
+      await changeOwnership(`${this.network.options.networkConfigPath}/${this.network.organizations[0].name}`);
     } catch (err) {
       e(err);
     }
@@ -93,17 +90,17 @@ services:
    */
   async startOrgCa(): Promise<Boolean> {
     try {
-      const caIsRunning = await this.dockerEngine.doesContainerExist(`${this.options.org.caName}`);
+      const caIsRunning = await this.dockerEngine.doesContainerExist(`${this.network.organizations[0].caName}`);
       if (caIsRunning) {
         l('CA container is already running');
         return true;
       }
 
-      await this.dockerEngine.composeOne(`${this.options.org.caName}`, { cwd: this.path, config: this.filename });
+      await this.dockerEngine.composeOne(`${this.network.organizations[0].caName}`, { cwd: this.path, config: this.filename });
 
       // Check the container is running
       await delay(DOCKER_CA_DELAY);
-       const isCaRunning = await this.dockerEngine.doesContainerExist(`${this.options.org.caName}`);
+       const isCaRunning = await this.dockerEngine.doesContainerExist(`${this.network.organizations[0].caName}`);
        if(!isCaRunning) {
          d('CA container not yet running - waiting more');
          await delay(DOCKER_CA_DELAY * 2);
@@ -111,9 +108,9 @@ services:
       d('CA running');
 
       // check if CA crypto generated
-      await changeOwnerShipWithPassword(`${this.options.networkRootPath}`);
-      // await this.changeOwnerShipWithPassword(`${this.options.networkRootPath}/organizations/fabric-ca/${this.options.org.name}`);
-      // await this.changeOwnership(`${this.options.networkRootPath}/organizations/fabric-ca/${this.options.org.name}`);
+      await changeOwnerShipWithPassword(`${this.network.options.networkConfigPath}`);
+      // await this.changeOwnerShipWithPassword(`${this.options.networkRootPath}/organizations/fabric-ca/${this.network.organizations[0].name}`);
+      // await this.changeOwnership(`${this.options.networkRootPath}/organizations/fabric-ca/${this.network.organizations[0].name}`);
 
       d('Folder OwnerShip updated successfully');
 
@@ -129,13 +126,13 @@ services:
    */
   async stopOrgCa(): Promise<Boolean> {
     try {
-      const caIsRunning = await this.dockerEngine.doesContainerExist(`${this.options.org.caName}`);
+      const caIsRunning = await this.dockerEngine.doesContainerExist(`${this.network.organizations[0].caName}`);
       if (!caIsRunning) {
-        l(`CA ${this.options.org.caName} container is not running`);
+        l(`CA ${this.network.organizations[0].caName} container is not running`);
         return true;
       }
 
-      return await this.dockerEngine.stopContainer(`${this.options.org.caName}`, true);
+      return await this.dockerEngine.stopContainer(`${this.network.organizations[0].caName}`, true);
     } catch (err) {
       e(err);
       return false;

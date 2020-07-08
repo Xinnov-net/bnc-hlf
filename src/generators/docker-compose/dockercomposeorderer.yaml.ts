@@ -15,9 +15,7 @@ limitations under the License.
 */
 
 import { BaseGenerator } from '../base';
-import { DockerComposeYamlOptions } from '../../utils/data-type';
 import { e, l } from '../../utils/logs';
-import { DockerEngine } from '../../agents/docker-agent';
 import { Utils } from '../../utils/utils';
 import getDockerComposePath = Utils.getDockerComposePath;
 import getArtifactsPath = Utils.getArtifactsPath;
@@ -37,41 +35,41 @@ export class DockerComposeOrdererGenerator extends BaseGenerator {
 version: '2'
 
 volumes:
-${this.options.org.orderers
+${this.network.organizations[0].orderers
     .map(orderer => `
-  ${orderer.name}.${this.options.org.domainName}:
+  ${orderer.name}.${this.network.organizations[0].domainName}:
 `).join('')}  
 
 networks:
-  ${this.options.composeNetwork}:
+  ${this.network.options.composeNetwork}:
     external: true
 
 services:
-${this.options.org.orderers.map(orderer => `
-  ${this.options.org.ordererName(orderer)}:
+${this.network.organizations[0].orderers.map(orderer => `
+  ${this.network.organizations[0].ordererName(orderer)}:
     extends:
       file:   base/docker-compose-base.yaml
       service: orderer-base  
     environment:
       - ORDERER_GENERAL_LISTENPORT=${orderer.options.ports[0]}
-    container_name: ${this.options.org.ordererName(orderer)}
+    container_name: ${this.network.organizations[0].ordererName(orderer)}
     extra_hosts:
       - "bnc_test: 127.0.0.1"
-${this.options.org.getPeerExtraHost()
+${this.network.organizations[0].getPeerExtraHost()
       .map(peerHost => `
-      - "${peerHost.name}.${this.options.org.fullName}:${this.options.org.engineHost(peerHost.options.engineName)}"
+      - "${peerHost.name}.${this.network.organizations[0].fullName}:${this.network.organizations[0].engineHost(peerHost.options.engineName)}"
 `).join('')}
-${this.options.org.getOrdererExtraHost()
+${this.network.organizations[0].getOrdererExtraHost()
       .map(ordererHost => `
-      - "${this.options.org.ordererName(ordererHost)}:${this.options.org.engineHost(ordererHost.options.engineName)}"
+      - "${this.network.organizations[0].ordererName(ordererHost)}:${this.network.organizations[0].engineHost(ordererHost.options.engineName)}"
 `).join('')}
     networks:
-      - ${this.options.composeNetwork}   
+      - ${this.network.options.composeNetwork}   
     volumes:
-      - ${getArtifactsPath(this.options.networkRootPath)}/${GENESIS_FILE_NAME}:/var/hyperledger/orderer/orderer.genesis.block
-      - ${this.options.networkRootPath}/organizations/ordererOrganizations/${this.options.org.domainName}/orderers/${this.options.org.ordererName(orderer)}/msp:/var/hyperledger/orderer/msp
-      - ${this.options.networkRootPath}/organizations/ordererOrganizations/${this.options.org.domainName}/orderers/${this.options.org.ordererName(orderer)}/tls/:/var/hyperledger/orderer/tls
-      - ${this.options.org.ordererName(orderer)}:/var/hyperledger/production/orderer
+      - ${getArtifactsPath(this.network.options.networkConfigPath)}/${GENESIS_FILE_NAME}:/var/hyperledger/orderer/orderer.genesis.block
+      - ${this.network.options.networkConfigPath}/organizations/ordererOrganizations/${this.network.organizations[0].domainName}/orderers/${this.network.organizations[0].ordererName(orderer)}/msp:/var/hyperledger/orderer/msp
+      - ${this.network.options.networkConfigPath}/organizations/ordererOrganizations/${this.network.organizations[0].domainName}/orderers/${this.network.organizations[0].ordererName(orderer)}/tls/:/var/hyperledger/orderer/tls
+      - ${this.network.organizations[0].ordererName(orderer)}:/var/hyperledger/production/orderer
     ports:
       - ${orderer.options.ports[0]}:${orderer.options.ports[0]}
 `).join('')}  
@@ -80,11 +78,10 @@ ${this.options.org.getOrdererExtraHost()
   /**
    * Constructor
    * @param filename
-   * @param options
    * @param network
    */
-  constructor(filename: string, private options: DockerComposeYamlOptions, private network?: Network) {
-    super(filename, getDockerComposePath(options.networkRootPath));
+  constructor(filename: string, private network: Network) {
+    super(filename, getDockerComposePath(network.options.networkConfigPath));
   }
 
   /**
@@ -107,15 +104,15 @@ ${this.options.org.getOrdererExtraHost()
    */
   async startOrderer(orderer: Orderer): Promise<boolean>  {
     try {
-      const serviceName = `${orderer.name}.${this.options.org.domainName}`;
+      const serviceName = `${orderer.name}.${this.network.organizations[0].domainName}`;
 
       l(`Starting Orderer ${serviceName}...`);
 
-      const engine = this.options.org.getEngine(orderer.options.engineName);
+      const engine = this.network.organizations[0].getEngine(orderer.options.engineName);
       const docker = Orchestrator._getDockerEngine(engine);
       // const docker = new DockerEngine({ host: engine.options.url, port: engine.options.port });
 
-      await docker.createNetwork({ Name: this.options.composeNetwork });
+      await docker.createNetwork({ Name: this.network.options.composeNetwork });
       await docker.composeOne(serviceName, { cwd: this.path, config: this.filename, log: ENABLE_CONTAINER_LOGGING });
 
       l(`Service Orderer ${serviceName} started successfully !!!`);
@@ -132,7 +129,7 @@ ${this.options.org.getOrdererExtraHost()
    */
   async startOrderers(): Promise<boolean> {
     try {
-      for(const orderer of this.options.org.orderers) {
+      for(const orderer of this.network.organizations[0].orderers) {
         await this.startOrderer(orderer);
       }
 

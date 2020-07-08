@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 import { BaseGenerator } from './base';
-import { DockerComposeYamlOptions } from '../utils/data-type';
 import { e } from '../utils/logs';
+import { Network } from '../models/network';
 
 /**
  *
@@ -24,25 +24,19 @@ import { e } from '../utils/logs';
  */
 export class ConnectionProfileGenerator extends BaseGenerator {
   contents = `
-name: "connection.${this.options.org.name}.profile"
-
-x-type: "hlfv1"
-
-description: "Connection profile for organization ${this.options.org.name}"
-
 version: "1.0"
 
 channels:
   ${this.channelName}:
     orderers:
-${this.options.org.orderers
+${this.network.organizations[0].orderers
     .map(orderer => `    
-      - ${orderer.name}.${this.options.org.fullName}
+      - ${orderer.name}.${this.network.organizations[0].fullName}
 `).join('')}      
     peers:
-${this.options.org.peers
+${this.network.organizations[0].peers
     .map(peer => `    
-      ${peer.name}.${this.options.org.fullName}:
+      ${peer.name}.${this.network.organizations[0].fullName}:
         endorsingPeer: true
         chaincodeQuery: true
         ledgerQuery: true
@@ -50,54 +44,54 @@ ${this.options.org.peers
 `).join('')}      
 
 organizations:
-  ${this.options.org.name}:
-    mspid: ${this.options.org.mspName}
+  ${this.network.organizations[0].name}:
+    mspid: ${this.network.organizations[0].mspName}
     peers:
-${this.options.org.peers
+${this.network.organizations[0].peers
     .map(peer => `    
-      - ${peer.name}.${this.options.org.fullName}
+      - ${peer.name}.${this.network.organizations[0].fullName}
 `).join('')}      
     certificateAuthorities:
-      - ${this.options.org.caName}
+      - ${this.network.organizations[0].caName}
 
 orderers:
-${this.options.org.orderers
+${this.network.organizations[0].orderers
     .map(orderer => `    
-  ${orderer.name}.${this.options.org.fullName}:
-    url: grpc${this.options.org.isSecure ? 's' : ''}://localhost:${orderer.options.ports[0]}
+  ${orderer.name}.${this.network.organizations[0].fullName}:
+    url: grpc${this.network.organizations[0].isSecure ? 's' : ''}://localhost:${orderer.options.ports[0]}
     grpcOptions:
-      ssl-target-name-override: ${orderer.name}.${this.options.org.fullName}
+      ssl-target-name-override: ${orderer.name}.${this.network.organizations[0].fullName}
 `).join('')}
 
 peers:
-${this.options.org.peers
+${this.network.organizations[0].peers
     .map(peer => `    
-  ${peer.name}.${this.options.org.fullName}:
-    url: grpc${this.options.org.isSecure ? 's' : ''}://localhost:${peer.options.ports[0]}
+  ${peer.name}.${this.network.organizations[0].fullName}:
+    url: grpc${this.network.organizations[0].isSecure ? 's' : ''}://localhost:${peer.options.ports[0]}
     grpcOptions:
-      ssl-target-name-override: ${peer.name}.${this.options.org.fullName}
+      ssl-target-name-override: ${peer.name}.${this.network.organizations[0].fullName}
       request-timeout: 120001
 `).join('')}
       
 certificateAuthorities:
-  ${this.options.org.caName}:
-     url: http://localhost:${this.options.org.ca.options.port}
+  ${this.network.organizations[0].caName}:
+     url: http://localhost:${this.network.organizations[0].ca.options.port}
      httpOptions:
        verify: false
      registrar:
-       - enrollId: ${this.options.org.ca.options.user}
-         enrollSecret: ${this.options.org.ca.options.password}
-     caName: ${this.options.org.caName}
+       - enrollId: ${this.network.organizations[0].ca.options.user}
+         enrollSecret: ${this.network.organizations[0].ca.options.password}
+     caName: ${this.network.organizations[0].caName}
   `;
 
   /**
    * Constructor
    * @param filename the connection profile filename
    * @param path loction folder path where to store the connection profile
-   * @param options
+   * @param network
    * @param channelName the name of the channel to be added by default in connection profile
    */
-  constructor(filename: string, path: string,  private options: DockerComposeYamlOptions, private channelName?: string) {
+  constructor(filename: string, path: string,  private network: Network, private channelName?: string) {
     super(filename, path);
   }
 

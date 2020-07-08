@@ -22,16 +22,16 @@ import { IEnrollResponse } from 'fabric-ca-client';
  *
  * @author wassim.znaidi@gmail.com
  */
-export class DockerComposeYamlOptions {
-  networkRootPath: string;
-  composeNetwork: string;
-  org: Organization;
-  envVars?: {
-    FABRIC_VERSION?: string;
-    FABRIC_CA_VERSION?: string;
-    THIRDPARTY_VERSION?: string;
-  };
-}
+// export class DockerComposeYamlOptions {
+//   networkRootPath: string;
+//   composeNetwork: string;
+//   org: Organization;
+//   envVars?: {
+//     FABRIC_VERSION?: string;
+//     FABRIC_CA_VERSION?: string;
+//     THIRDPARTY_VERSION?: string;
+//   };
+// }
 
 export class CSR {
   csr: string;

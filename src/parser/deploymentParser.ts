@@ -22,7 +22,7 @@ import { Orderer } from '../models/orderer';
 import { BaseParser } from './base';
 import { Ca } from '../models/ca';
 import { Network } from '../models/network';
-import { CA_DEFAULT_PORT, ConsensusType, DEFAULT_CA_ADMIN, EXTERNAL_HLF_VERSION, HLF_CA_VERSION, HLF_VERSION, ORDERER_DEFAULT_PORT, PEER_DEFAULT_PORT } from '../utils/constants';
+import { BNC_NETWORK, CA_DEFAULT_PORT, ConsensusType, DEFAULT_CA_ADMIN, EXTERNAL_HLF_VERSION, HLF_CA_VERSION, HLF_VERSION, ORDERER_DEFAULT_PORT, PEER_DEFAULT_PORT } from '../utils/constants';
 import { OrdererOrganization } from '../models/ordererOrganization';
 
 /**
@@ -68,6 +68,7 @@ export class DeploymentParser extends BaseParser {
       hyperledgerVersion: fabric as HLF_VERSION,
       hyperledgerCAVersion: HLF_CA_VERSION.HLF_2,
       externalHyperledgerVersion: EXTERNAL_HLF_VERSION.EXT_HLF_2,
+      composeNetwork: BNC_NETWORK,
       consensus: consensus as ConsensusType,
       inside: false,
       networkConfigPath: template_folder,

@@ -15,14 +15,13 @@ limitations under the License.
 */
 
 import { BaseGenerator } from '../base';
-import { DockerComposeYamlOptions } from '../../utils/data-type';
 import { e, l } from '../../utils/logs';
-import { DockerEngine } from '../../agents/docker-agent';
 import { Peer } from '../../models/peer';
 import { Utils } from '../../utils/utils';
 import getDockerComposePath = Utils.getDockerComposePath;
 import { ENABLE_CONTAINER_LOGGING } from '../../utils/constants';
 import { Orchestrator } from '../../orchestrator';
+import { Network } from '../../models/network';
 
 /**
  * Class responsible to generate Peer compose file
@@ -35,34 +34,34 @@ export class DockerComposePeerGenerator extends BaseGenerator {
 version: '2'
 
 volumes:
-${this.options.org.peers
+${this.network.organizations[0].peers
     .map(peer => `
-  ${peer.name}.${this.options.org.fullName}:
+  ${peer.name}.${this.network.organizations[0].fullName}:
 `).join('')}
 
 networks:
-  ${this.options.composeNetwork}:
+  ${this.network.options.composeNetwork}:
     external: true
 
 services:
-${this.options.org.peers
+${this.network.organizations[0].peers
     .map((peer, index) => `
-  ${peer.name}.${this.options.org.fullName}:
-    container_name: ${peer.name}.${this.options.org.fullName}
+  ${peer.name}.${this.network.organizations[0].fullName}:
+    container_name: ${peer.name}.${this.network.organizations[0].fullName}
     extends:
-      file:  ${this.options.networkRootPath}/docker-compose/base/docker-compose-base.yaml
+      file:  ${this.network.options.networkConfigPath}/docker-compose/base/docker-compose-base.yaml
       service: peer-base
     environment:
-      - CORE_PEER_ID=${peer.name}.${this.options.org.fullName}
-      - CORE_PEER_ADDRESS=${peer.name}.${this.options.org.fullName}:${peer.options.ports[0]}
+      - CORE_PEER_ID=${peer.name}.${this.network.organizations[0].fullName}
+      - CORE_PEER_ADDRESS=${peer.name}.${this.network.organizations[0].fullName}:${peer.options.ports[0]}
       - CORE_PEER_LISTENADDRESS=0.0.0.0:${peer.options.ports[0]}
-      - CORE_PEER_CHAINCODEADDRESS=${peer.name}.${this.options.org.fullName}:${peer.options.ports[1]}
+      - CORE_PEER_CHAINCODEADDRESS=${peer.name}.${this.network.organizations[0].fullName}:${peer.options.ports[1]}
       - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:${peer.options.ports[1]}
-      - CORE_PEER_GOSSIP_BOOTSTRAP=${this.options.org.gossipPeer(index)}
-      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=${peer.name}.${this.options.org.fullName}:${peer.options.ports[0]}
-      - CORE_PEER_LOCALMSPID=${this.options.org.mspName}
+      - CORE_PEER_GOSSIP_BOOTSTRAP=${this.network.organizations[0].gossipPeer(index)}
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=${peer.name}.${this.network.organizations[0].fullName}:${peer.options.ports[0]}
+      - CORE_PEER_LOCALMSPID=${this.network.organizations[0].mspName}
       - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
-      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=${peer.name}.${this.options.org.fullName}.couchdb:5984
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=${peer.name}.${this.network.organizations[0].fullName}.couchdb:5984
       # The CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME and CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD
       # provide the credentials for ledger to connect to CouchDB.  The username and password must
       # match the username and password set for the associated CouchDB.
@@ -72,26 +71,26 @@ ${this.options.org.peers
       - ${peer.options.ports[0]}:${peer.options.ports[0]}
     volumes:
       - /var/run/:/host/var/run/
-      - ${this.options.networkRootPath}/organizations/peerOrganizations/${this.options.org.fullName}/peers/${peer.name}.${this.options.org.fullName}/msp:/etc/hyperledger/fabric/msp
-      - ${this.options.networkRootPath}/organizations/peerOrganizations/${this.options.org.fullName}/peers/${peer.name}.${this.options.org.fullName}/tls:/etc/hyperledger/fabric/tls
-      - ${peer.name}.${this.options.org.fullName}:/var/hyperledger/production
+      - ${this.network.options.networkConfigPath}/organizations/peerOrganizations/${this.network.organizations[0].fullName}/peers/${peer.name}.${this.network.organizations[0].fullName}/msp:/etc/hyperledger/fabric/msp
+      - ${this.network.options.networkConfigPath}/organizations/peerOrganizations/${this.network.organizations[0].fullName}/peers/${peer.name}.${this.network.organizations[0].fullName}/tls:/etc/hyperledger/fabric/tls
+      - ${peer.name}.${this.network.organizations[0].fullName}:/var/hyperledger/production
     extra_hosts:
       - "bnc_test: 127.0.0.1"
-${this.options.org.getPeerExtraHost()
+${this.network.organizations[0].getPeerExtraHost()
       .map(peerHost => `
-      - "${peerHost.name}.${this.options.org.fullName}:${this.options.org.engineHost(peerHost.options.engineName)}"
+      - "${peerHost.name}.${this.network.organizations[0].fullName}:${this.network.organizations[0].engineHost(peerHost.options.engineName)}"
 `).join('')}
-${this.options.org.getOrdererExtraHost()
+${this.network.organizations[0].getOrdererExtraHost()
       .map(ordererHost => `
-      - "${ordererHost.name}.${this.options.org.fullName}:${this.options.org.engineHost(ordererHost.options.engineName)}"
+      - "${ordererHost.name}.${this.network.organizations[0].fullName}:${this.network.organizations[0].engineHost(ordererHost.options.engineName)}"
 `).join('')}
     depends_on:
-      - ${peer.name}.${this.options.org.fullName}.couchdb
+      - ${peer.name}.${this.network.organizations[0].fullName}.couchdb
     networks:
-      - ${this.options.composeNetwork}
+      - ${this.network.options.composeNetwork}
     
-  ${peer.name}.${this.options.org.fullName}.couchdb:
-    container_name: ${peer.name}.${this.options.org.fullName}.couchdb
+  ${peer.name}.${this.network.organizations[0].fullName}.couchdb:
+    container_name: ${peer.name}.${this.network.organizations[0].fullName}.couchdb
     image: couchdb:2.3
     # Populate the COUCHDB_USER and COUCHDB_PASSWORD to set an admin user and password
     # for CouchDB.  This will prevent CouchDB from operating in an "Admin Party" mode.
@@ -102,7 +101,7 @@ ${this.options.org.getOrdererExtraHost()
     ports:
       - ${peer.options.couchDbPort}:5984
     networks:
-      - ${this.options.composeNetwork}
+      - ${this.network.options.composeNetwork}
 `).join('')}
   
   `;
@@ -110,10 +109,10 @@ ${this.options.org.getOrdererExtraHost()
   /**
    * Constructor
    * @param filename
-   * @param options
+   * @param network
    */
-  constructor(filename: string, private options: DockerComposeYamlOptions) {
-    super(filename, getDockerComposePath(options.networkRootPath));
+  constructor(filename: string, private network: Network) {
+    super(filename, getDockerComposePath(network.options.networkConfigPath));
   }
 
   /**
@@ -137,15 +136,15 @@ ${this.options.org.getOrdererExtraHost()
    */
   async startPeer(peer: Peer): Promise<boolean> {
     try {
-      const serviceName =  `${peer.name}.${this.options.org.fullName}`;
+      const serviceName =  `${peer.name}.${this.network.organizations[0].fullName}`;
 
       l(`Starting Peer ${serviceName}...`);
 
-      const engine = this.options.org.getEngine(peer.options.engineName);
+      const engine = this.network.organizations[0].getEngine(peer.options.engineName);
       const docker = Orchestrator._getDockerEngine(engine);
       // const docker = new DockerEngine({ host: engine.options.url, port: engine.options.port });
 
-      await docker.createNetwork({ Name: this.options.composeNetwork });
+      await docker.createNetwork({ Name: this.network.options.composeNetwork });
       await docker.composeOne(serviceName, { cwd: this.path, config: this.filename, log: ENABLE_CONTAINER_LOGGING });
 
       l(`Service Peer ${serviceName} started successfully !!!`);
@@ -161,7 +160,7 @@ ${this.options.org.getOrdererExtraHost()
    * Start all peer container with the provided organization
    */
   async startPeers() {
-    for(const peer of this.options.org.peers) {
+    for(const peer of this.network.organizations[0].peers) {
       await this.startPeer(peer);
     }
   }
