@@ -1,5 +1,5 @@
 genesis:
-  template_folder: "~/hyperledger-fabric-network"
+  template_folder: "./build/hyperledger-fabric-network"
   consensus: "raft"
   ordererDomain: "bnc.com"
   ca:

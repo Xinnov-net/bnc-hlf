@@ -147,6 +147,7 @@ Desktop.ini
 ######################
 # Config
 ######################
+build/
 config-deploy.yaml
 config-genesis.yaml
 

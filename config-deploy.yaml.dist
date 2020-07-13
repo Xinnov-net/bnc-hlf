@@ -1,5 +1,5 @@
 chains:
-  template_folder: "~/hyperledger-fabric-network"
+  template_folder: "./build/hyperledger-fabric-network"
   fabric: "2.0.0"
   tls: true
   consensus: "raft"
