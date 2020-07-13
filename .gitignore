@@ -142,3 +142,11 @@ Desktop.ini
 # ESLint
 ######################
 .eslintcache
+
+
+######################
+# Config
+######################
+config-deploy.yaml
+config-genesis.yaml
+
